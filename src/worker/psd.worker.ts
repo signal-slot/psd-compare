@@ -49,6 +49,7 @@ interface PsdDiffModule {
 }
 
 let wasmModule: PsdDiffModule | null = null;
+let initPromise: Promise<void> | null = null;
 
 // Store parser handles on JavaScript side
 const parserHandles: { A: number | null; B: number | null } = { A: null, B: null };
@@ -69,24 +70,37 @@ async function loadWasmModule(): Promise<PsdDiffModule> {
 }
 
 async function initWasm(): Promise<void> {
+  // If already initialized, return immediately
   if (wasmModule) return;
 
-  try {
-    wasmModule = await loadWasmModule();
-    postResponse({ type: 'ready' });
-  } catch (error) {
-    postResponse({
-      type: 'error',
-      message: `Failed to initialize WASM module: ${error instanceof Error ? error.message : String(error)}`
-    });
-  }
+  // If initialization is in progress, wait for it
+  if (initPromise) return initPromise;
+
+  // Start initialization and store the promise to prevent concurrent inits
+  initPromise = (async () => {
+    try {
+      wasmModule = await loadWasmModule();
+      postResponse({ type: 'ready' });
+    } catch (error) {
+      initPromise = null; // Allow retry on error
+      postResponse({
+        type: 'error',
+        message: `Failed to initialize WASM module: ${error instanceof Error ? error.message : String(error)}`
+      });
+    }
+  })();
+
+  return initPromise;
 }
 
 function postResponse(response: WorkerResponse): void {
   self.postMessage(response);
 }
 
-function parsePsd(file: 'A' | 'B', data: ArrayBuffer): void {
+async function parsePsd(file: 'A' | 'B', data: ArrayBuffer): Promise<void> {
+  // Ensure WASM is initialized before parsing
+  await initWasm();
+
   if (!wasmModule) {
     postResponse({ type: 'error', message: 'WASM module not initialized' });
     return;
@@ -276,7 +290,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       await initWasm();
       break;
     case 'parse':
-      parsePsd(request.file, request.data);
+      await parsePsd(request.file, request.data);
       break;
     case 'renderCompositeWithVisibility':
       renderCompositeWithVisibility(request.file, request.hiddenLayerIds, request.shownLayerIds);
