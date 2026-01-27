@@ -1,4 +1,4 @@
-# PSD Diff
+# PSD Compare
 
 A browser-based PSD file comparison tool that visualizes differences between two PSD files. All processing happens client-side - **no files are uploaded to any server**.
 

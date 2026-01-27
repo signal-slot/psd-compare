@@ -84,7 +84,7 @@ export default function App() {
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <span style={styles.title}>PSD Diff</span>
+        <span style={styles.title}>PSD Compare</span>
         <span style={{ fontSize: '12px', opacity: 0.6 }}>
           Compare PSD files locally - no upload required
         </span>
