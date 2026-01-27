@@ -51,27 +51,98 @@ const styles = {
     boxSizing: 'border-box' as const
   },
   landingContent: {
-    maxWidth: '640px',
+    maxWidth: '720px',
     margin: '0 auto',
-    color: '#ccc',
-    fontSize: '14px',
-    lineHeight: 1.7
+    color: '#bbb',
+    fontSize: '15px',
+    lineHeight: 1.6
   },
   landingTitle: {
-    fontSize: '24px',
+    fontSize: '32px',
+    fontWeight: 700,
+    color: '#fff',
+    marginBottom: '12px',
+    textAlign: 'center' as const
+  },
+  landingSubtitle: {
+    fontSize: '18px',
+    color: '#888',
+    textAlign: 'center' as const,
+    marginBottom: '48px'
+  },
+  section: {
+    marginBottom: '40px'
+  },
+  sectionTitle: {
+    fontSize: '18px',
     fontWeight: 600,
     color: '#fff',
-    marginBottom: '24px'
+    marginBottom: '20px',
+    paddingBottom: '8px',
+    borderBottom: '1px solid #444'
   },
-  landingParagraph: {
-    marginBottom: '16px'
+  cards: {
+    display: 'flex',
+    gap: '16px',
+    flexWrap: 'wrap' as const
   },
-  landingList: {
-    marginBottom: '16px',
-    paddingLeft: '20px'
+  card: {
+    flex: '1 1 180px',
+    backgroundColor: '#2a2a2a',
+    borderRadius: '8px',
+    padding: '20px',
+    textAlign: 'center' as const
   },
-  landingListItem: {
+  cardIcon: {
+    fontSize: '32px',
+    marginBottom: '12px'
+  },
+  cardTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#fff',
     marginBottom: '8px'
+  },
+  cardDesc: {
+    fontSize: '13px',
+    color: '#888'
+  },
+  steps: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px'
+  },
+  step: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    fontSize: '16px'
+  },
+  stepNum: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    backgroundColor: '#4caf50',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 700,
+    flexShrink: 0
+  },
+  features: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px'
+  },
+  feature: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    fontSize: '16px'
+  },
+  featureIcon: {
+    fontSize: '20px'
   },
   busyOverlay: {
     position: 'absolute' as const,
@@ -233,43 +304,47 @@ export default function PreviewPane() {
         ) : (
           <div style={styles.placeholder}>
             <div style={styles.landingContent}>
-              <h1 style={styles.landingTitle}>Compare PSD Files Online — Securely, Instantly, and Without Uploading</h1>
+              <h1 style={styles.landingTitle}>What changed in this PSD?</h1>
+              <p style={styles.landingSubtitle}>Compare two PSD files instantly. No Photoshop. No uploads. 100% private.</p>
 
-              <p style={styles.landingParagraph}>
-                Have you ever received a PSD file and wondered what actually changed?
-              </p>
+              <div style={styles.section}>
+                <h2 style={styles.sectionTitle}>Who is this for?</h2>
+                <div style={styles.cards}>
+                  <div style={styles.card}>
+                    <div style={styles.cardIcon}>👨‍💻</div>
+                    <div style={styles.cardTitle}>Engineers</div>
+                    <div style={styles.cardDesc}>Review design changes without Photoshop</div>
+                  </div>
+                  <div style={styles.card}>
+                    <div style={styles.cardIcon}>📋</div>
+                    <div style={styles.cardTitle}>Project Managers</div>
+                    <div style={styles.cardDesc}>Verify deliverables from designers</div>
+                  </div>
+                  <div style={styles.card}>
+                    <div style={styles.cardIcon}>🎨</div>
+                    <div style={styles.cardTitle}>Designers</div>
+                    <div style={styles.cardDesc}>Show clients exactly what changed</div>
+                  </div>
+                </div>
+              </div>
 
-              <p style={styles.landingParagraph}>
-                Opening Photoshop just to check a small update is slow, expensive, and often unnecessary. This tool exists for one simple reason: to let you compare two PSD files and immediately see the differences — without installing anything and without uploading your files to a server.
-              </p>
+              <div style={styles.section}>
+                <h2 style={styles.sectionTitle}>How it works</h2>
+                <div style={styles.steps}>
+                  <div style={styles.step}><span style={styles.stepNum}>1</span> Drop "Before" PSD on the left</div>
+                  <div style={styles.step}><span style={styles.stepNum}>2</span> Drop "After" PSD below it</div>
+                  <div style={styles.step}><span style={styles.stepNum}>3</span> See visual diff + layer changes</div>
+                </div>
+              </div>
 
-              <p style={styles.landingParagraph}>
-                Everything runs entirely inside your browser. Your PSD files are never sent anywhere, stored anywhere, or analyzed on a remote server. You can verify this yourself using your browser's developer tools. This makes the tool safe to use even for confidential designs, client work, and NDA-protected projects.
-              </p>
-
-              <p style={styles.landingParagraph}>
-                The workflow is intentionally simple. Select two PSD files, and the tool highlights what changed: visual differences, layer-level changes, and structural updates that matter during reviews. There is no editing, no history, and no account system. This is not a design tool. It is a review and verification tool.
-              </p>
-
-              <p style={styles.landingParagraph}>This is especially useful if you:</p>
-              <ul style={styles.landingList}>
-                <li style={styles.landingListItem}>Are an engineer or PM who needs to review design updates</li>
-                <li style={styles.landingListItem}>Receive PSD files from designers or external vendors</li>
-                <li style={styles.landingListItem}>Want to confirm changes without opening Photoshop</li>
-                <li style={styles.landingListItem}>Work with legacy PSD assets in a Figma-first workflow</li>
-              </ul>
-
-              <p style={styles.landingParagraph}>
-                The goal is not to replace Photoshop or Figma. It is to solve a narrow, real problem: understanding changes quickly and safely.
-              </p>
-
-              <p style={styles.landingParagraph}>
-                The tool is free and will remain free. It collects no data, performs no tracking, and makes no assumptions about how you work. If it saves you time, that's enough.
-              </p>
-
-              <p style={styles.landingParagraph}>
-                If you ever find yourself asking "what changed in this PSD?", this tool is for you.
-              </p>
+              <div style={styles.section}>
+                <h2 style={styles.sectionTitle}>Why this tool?</h2>
+                <div style={styles.features}>
+                  <div style={styles.feature}><span style={styles.featureIcon}>🔒</span> Files never leave your browser</div>
+                  <div style={styles.feature}><span style={styles.featureIcon}>⚡</span> Instant comparison via WebAssembly</div>
+                  <div style={styles.feature}><span style={styles.featureIcon}>🆓</span> Free forever, no account needed</div>
+                </div>
+              </div>
             </div>
           </div>
         )}
