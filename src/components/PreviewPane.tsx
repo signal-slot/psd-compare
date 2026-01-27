@@ -358,11 +358,6 @@ export default function PreviewPane() {
                 </div>
               </div>
 
-              <div style={styles.copyright}>
-                © 2026 <a href="https://signal-slot.co.jp" target="_blank" rel="noopener noreferrer" style={styles.copyrightLink}>Signal Slot Inc.</a>
-                <span style={{ margin: '0 8px' }}>·</span>
-                <a href="https://github.com/signal-slot/psd-compare" target="_blank" rel="noopener noreferrer" style={styles.copyrightLink}>GitHub</a>
-              </div>
             </div>
           </div>
         )}

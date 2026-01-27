@@ -86,7 +86,9 @@ export default function App() {
       <header style={styles.header}>
         <span style={styles.title}>PSD Compare</span>
         <span style={{ fontSize: '12px', opacity: 0.6 }}>
-          Compare PSD files locally - no upload required
+          © 2026 <a href="https://signal-slot.co.jp" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>Signal Slot Inc.</a>
+          <span style={{ margin: '0 8px' }}>·</span>
+          <a href="https://github.com/signal-slot/psd-compare" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>GitHub</a>
         </span>
       </header>
 
