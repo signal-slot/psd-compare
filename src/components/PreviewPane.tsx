@@ -46,10 +46,32 @@ const styles = {
   },
   placeholder: {
     height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 0.5
+    overflow: 'auto',
+    padding: '40px',
+    boxSizing: 'border-box' as const
+  },
+  landingContent: {
+    maxWidth: '640px',
+    margin: '0 auto',
+    color: '#ccc',
+    fontSize: '14px',
+    lineHeight: 1.7
+  },
+  landingTitle: {
+    fontSize: '24px',
+    fontWeight: 600,
+    color: '#fff',
+    marginBottom: '24px'
+  },
+  landingParagraph: {
+    marginBottom: '16px'
+  },
+  landingList: {
+    marginBottom: '16px',
+    paddingLeft: '20px'
+  },
+  landingListItem: {
+    marginBottom: '8px'
   },
   busyOverlay: {
     position: 'absolute' as const,
@@ -210,7 +232,45 @@ export default function PreviewPane() {
           <SinglePreview image={singleImage!} selectedLayer={selectedLayerA || selectedLayerB} />
         ) : (
           <div style={styles.placeholder}>
-            Load PSD files to preview
+            <div style={styles.landingContent}>
+              <h1 style={styles.landingTitle}>Compare PSD Files Online — Securely, Instantly, and Without Uploading</h1>
+
+              <p style={styles.landingParagraph}>
+                Have you ever received a PSD file and wondered what actually changed?
+              </p>
+
+              <p style={styles.landingParagraph}>
+                Opening Photoshop just to check a small update is slow, expensive, and often unnecessary. This tool exists for one simple reason: to let you compare two PSD files and immediately see the differences — without installing anything and without uploading your files to a server.
+              </p>
+
+              <p style={styles.landingParagraph}>
+                Everything runs entirely inside your browser. Your PSD files are never sent anywhere, stored anywhere, or analyzed on a remote server. You can verify this yourself using your browser's developer tools. This makes the tool safe to use even for confidential designs, client work, and NDA-protected projects.
+              </p>
+
+              <p style={styles.landingParagraph}>
+                The workflow is intentionally simple. Select two PSD files, and the tool highlights what changed: visual differences, layer-level changes, and structural updates that matter during reviews. There is no editing, no history, and no account system. This is not a design tool. It is a review and verification tool.
+              </p>
+
+              <p style={styles.landingParagraph}>This is especially useful if you:</p>
+              <ul style={styles.landingList}>
+                <li style={styles.landingListItem}>Are an engineer or PM who needs to review design updates</li>
+                <li style={styles.landingListItem}>Receive PSD files from designers or external vendors</li>
+                <li style={styles.landingListItem}>Want to confirm changes without opening Photoshop</li>
+                <li style={styles.landingListItem}>Work with legacy PSD assets in a Figma-first workflow</li>
+              </ul>
+
+              <p style={styles.landingParagraph}>
+                The goal is not to replace Photoshop or Figma. It is to solve a narrow, real problem: understanding changes quickly and safely.
+              </p>
+
+              <p style={styles.landingParagraph}>
+                The tool is free and will remain free. It collects no data, performs no tracking, and makes no assumptions about how you work. If it saves you time, that's enough.
+              </p>
+
+              <p style={styles.landingParagraph}>
+                If you ever find yourself asking "what changed in this PSD?", this tool is for you.
+              </p>
+            </div>
           </div>
         )}
         {rendering && (
