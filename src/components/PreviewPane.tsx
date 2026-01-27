@@ -144,6 +144,18 @@ const styles = {
   featureIcon: {
     fontSize: '20px'
   },
+  copyright: {
+    marginTop: '48px',
+    paddingTop: '24px',
+    borderTop: '1px solid #333',
+    textAlign: 'center' as const,
+    fontSize: '13px',
+    color: '#666'
+  },
+  copyrightLink: {
+    color: '#888',
+    textDecoration: 'none'
+  },
   busyOverlay: {
     position: 'absolute' as const,
     top: 0,
@@ -344,6 +356,12 @@ export default function PreviewPane() {
                   <div style={styles.feature}><span style={styles.featureIcon}>⚡</span> Instant comparison via WebAssembly</div>
                   <div style={styles.feature}><span style={styles.featureIcon}>🆓</span> Free forever, no account needed</div>
                 </div>
+              </div>
+
+              <div style={styles.copyright}>
+                © 2026 <a href="https://signal-slot.co.jp" target="_blank" rel="noopener noreferrer" style={styles.copyrightLink}>Signal Slot Inc.</a>
+                <span style={{ margin: '0 8px' }}>·</span>
+                <a href="https://github.com/signal-slot/psd-compare" target="_blank" rel="noopener noreferrer" style={styles.copyrightLink}>GitHub</a>
               </div>
             </div>
           </div>
