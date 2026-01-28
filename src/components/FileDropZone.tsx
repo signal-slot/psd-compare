@@ -10,21 +10,31 @@ interface Props {
   label: string;
 }
 
+// Colors: Before (A) = Red, After (B) = Blue
+const fileColors = {
+  A: { primary: '#f44336', bg: 'rgba(244, 67, 54, 0.15)' },
+  B: { primary: '#2196f3', bg: 'rgba(33, 150, 243, 0.15)' }
+};
+
 const styles = {
-  container: (isDragging: boolean, hasFile: boolean) => ({
-    padding: '16px',
-    border: `2px dashed ${isDragging ? '#4caf50' : hasFile ? '#666' : '#444'}`,
-    borderRadius: '8px',
-    backgroundColor: isDragging ? 'rgba(76, 175, 80, 0.1)' : 'transparent',
-    cursor: 'pointer',
-    transition: 'all 0.2s'
-  }),
-  label: {
-    fontSize: '12px',
-    fontWeight: 500,
-    marginBottom: '4px',
-    opacity: 0.7
+  container: (isDragging: boolean, hasFile: boolean, fileSlot: 'A' | 'B') => {
+    const color = fileColors[fileSlot];
+    return {
+      padding: '16px',
+      border: `2px dashed ${isDragging ? color.primary : hasFile ? '#555' : color.primary}`,
+      borderRadius: '8px',
+      backgroundColor: isDragging ? color.bg : hasFile ? 'transparent' : color.bg,
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+      opacity: hasFile ? 0.8 : 1
+    };
   },
+  label: (fileSlot: 'A' | 'B', hasFile: boolean) => ({
+    fontSize: '12px',
+    fontWeight: 600,
+    marginBottom: '4px',
+    color: hasFile ? '#999' : fileColors[fileSlot].primary
+  }),
   fileName: {
     fontSize: '14px',
     wordBreak: 'break-all' as const
@@ -94,7 +104,7 @@ export default function FileDropZone({ file, label }: Props) {
 
   return (
     <div
-      style={styles.container(isDragging, !!psd)}
+      style={styles.container(isDragging, !!psd, file)}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -108,7 +118,7 @@ export default function FileDropZone({ file, label }: Props) {
         onChange={handleInputChange}
       />
 
-      <div style={styles.label}>{label}</div>
+      <div style={styles.label(file, !!psd)}>{label}</div>
 
       {loading ? (
         <div style={styles.loading}>
