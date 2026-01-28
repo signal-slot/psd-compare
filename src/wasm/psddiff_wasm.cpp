@@ -503,11 +503,19 @@ val renderCompositeWithVisibility(double handleD, val hiddenLayerIds, val shownL
             if (rawData.isEmpty()) continue;
 
             bool hasAlpha = channelImageData.hasAlpha();
-            QImage::Format format = hasAlpha ? QImage::Format_ARGB32 : QImage::Format_RGB32;
-            int bytesPerLine = rect.width() * 4;
+            QImage layerImage;
 
-            QImage layerImage(reinterpret_cast<const uchar*>(rawData.constData()),
-                             rect.width(), rect.height(), bytesPerLine, format);
+            if (hasAlpha) {
+                // ARGB32: 4 bytes per pixel
+                int bytesPerLine = rect.width() * 4;
+                layerImage = QImage(reinterpret_cast<const uchar*>(rawData.constData()),
+                                   rect.width(), rect.height(), bytesPerLine, QImage::Format_ARGB32);
+            } else {
+                // BGR888: 3 bytes per pixel (same as qpsdguiglobal.cpp)
+                int bytesPerLine = rect.width() * 3;
+                layerImage = QImage(reinterpret_cast<const uchar*>(rawData.constData()),
+                                   rect.width(), rect.height(), bytesPerLine, QImage::Format_BGR888);
+            }
 
             if (layerImage.isNull()) continue;
 
@@ -596,11 +604,19 @@ val renderLayer(double handleD, int layerIndex) {
         }
 
         bool hasAlpha = channelImageData.hasAlpha();
-        QImage::Format format = hasAlpha ? QImage::Format_ARGB32 : QImage::Format_RGB32;
-        int bytesPerLine = rect.width() * 4;
+        QImage image;
 
-        QImage image(reinterpret_cast<const uchar*>(rawData.constData()),
-                     rect.width(), rect.height(), bytesPerLine, format);
+        if (hasAlpha) {
+            // ARGB32: 4 bytes per pixel
+            int bytesPerLine = rect.width() * 4;
+            image = QImage(reinterpret_cast<const uchar*>(rawData.constData()),
+                          rect.width(), rect.height(), bytesPerLine, QImage::Format_ARGB32);
+        } else {
+            // BGR888: 3 bytes per pixel (same as qpsdguiglobal.cpp)
+            int bytesPerLine = rect.width() * 3;
+            image = QImage(reinterpret_cast<const uchar*>(rawData.constData()),
+                          rect.width(), rect.height(), bytesPerLine, QImage::Format_BGR888);
+        }
 
         if (image.isNull()) {
             result.set("width", 0);
