@@ -68,7 +68,6 @@ Q_IMPORT_PLUGIN(QPsdDescriptorBoolPlugin)
 Q_IMPORT_PLUGIN(QPsdDescriptorDoubPlugin)
 Q_IMPORT_PLUGIN(QPsdDescriptorEnumPlugin)
 Q_IMPORT_PLUGIN(QPsdDescriptorLongPlugin)
-Q_IMPORT_PLUGIN(QPsdDescriptorLyidPlugin)
 Q_IMPORT_PLUGIN(QPsdDescriptorObArPlugin)
 Q_IMPORT_PLUGIN(QPsdDescriptorObjPlugin)
 Q_IMPORT_PLUGIN(QPsdDescriptorObjcPlugin)
@@ -513,7 +512,16 @@ val renderCompositeWithVisibility(double handleD, val hiddenLayerIds, val shownL
             if (layerImage.isNull()) continue;
 
             // Get opacity (0-255 to 0.0-1.0)
-            double opacity = record.opacity() / 255.0;
+            double layerOpacity = record.opacity() / 255.0;
+
+            // Get fill opacity from iOpa (0-255, default to 255 if not present)
+            double fillOpacity = 1.0;
+            if (ali.contains("iOpa")) {
+                fillOpacity = ali.value("iOpa").value<quint8>() / 255.0;
+            }
+
+            // Effective opacity = layer opacity * fill opacity (same as psdwidget)
+            double opacity = layerOpacity * fillOpacity;
 
             // Composite this layer onto the output
             compositeLayer(output, width, height,

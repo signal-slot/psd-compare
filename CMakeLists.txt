@@ -75,7 +75,6 @@ if(EMSCRIPTEN)
         QPsdDescriptorDoubPlugin
         QPsdDescriptorEnumPlugin
         QPsdDescriptorLongPlugin
-        QPsdDescriptorLyidPlugin
         QPsdDescriptorObArPlugin
         QPsdDescriptorObjPlugin
         QPsdDescriptorObjcPlugin
