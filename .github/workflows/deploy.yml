@@ -1,9 +1,13 @@
+# Copyright (C) 2026 Signal Slot Inc.
+# SPDX-License-Identifier: MIT
+
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -11,17 +15,36 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: recursive
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: '3.1.50'
+
+      - name: Install Qt WASM
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          target: 'wasm'
+          host: 'all_os'
+          arch: 'wasm_singlethread'
+          cache: true
+
+      - name: Build WASM module
+        run: |
+          export QT_WASM_PATH=$QT_ROOT_DIR
+          chmod +x $QT_ROOT_DIR/bin/qt-cmake
+          ./build-wasm.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,11 +55,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build frontend
         run: npm run build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -44,6 +64,7 @@ jobs:
           path: ./dist
 
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

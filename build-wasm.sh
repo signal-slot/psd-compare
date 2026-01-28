@@ -43,9 +43,9 @@ echo "Configuring..."
     -DCMAKE_PREFIX_PATH="$QT_WASM_PATH" \
     "$SCRIPT_DIR"
 
-# Build
+# Build only psddiff_wasm target (skip psdexporter which has linking issues)
 echo "Building..."
-cmake --build . --parallel
+cmake --build . --target psddiff_wasm --parallel
 
 # Copy output to public directory
 mkdir -p "$OUTPUT_DIR"
