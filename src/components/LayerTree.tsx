@@ -253,11 +253,12 @@ export default function LayerTree() {
         />
 
         <div style={styles.filterRow}>
-          <label style={styles.checkbox}>
+          <label style={{ ...styles.checkbox, opacity: isComparisonMode ? 1 : 0.5 }}>
             <input
               type="checkbox"
               checked={showDiffOnly}
               onChange={(e) => setShowDiffOnly(e.target.checked)}
+              disabled={!isComparisonMode}
             />
             Show changes only
           </label>
