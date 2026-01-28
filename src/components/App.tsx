@@ -24,7 +24,10 @@ const styles = {
   },
   title: {
     fontSize: '18px',
-    fontWeight: 600
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
   },
   main: {
     display: 'flex',
@@ -84,7 +87,15 @@ export default function App() {
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <span style={styles.title}>PSD Compare</span>
+        <span style={styles.title}>
+          <svg width="24" height="24" viewBox="0 0 32 32">
+            <rect x="2" y="6" width="16" height="20" rx="2" fill="#2196f3" opacity="0.9"/>
+            <rect x="14" y="6" width="16" height="20" rx="2" fill="#f44336" opacity="0.9"/>
+            <rect x="14" y="6" width="4" height="20" fill="#9c27b0"/>
+            <text x="16" y="22" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="bold" fill="#fff">PSD</text>
+          </svg>
+          PSD Compare
+        </span>
         <span style={{ fontSize: '12px', opacity: 0.6 }}>
           © 2026 <a href="https://signal-slot.co.jp" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>Signal Slot Inc.</a>
           <span style={{ margin: '0 8px' }}>·</span>
