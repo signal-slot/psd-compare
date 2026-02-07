@@ -1,7 +1,8 @@
 // Copyright (C) 2026 Signal Slot Inc.
 // SPDX-License-Identifier: MIT
 
-import type { WorkerRequest, WorkerResponse, PsdData, RenderedImage, FileSlot } from './types';
+import type { WorkerRequest, WorkerResponse, PsdData, RenderedImage, FileSlot, RenderMode } from './types';
+import { qtRenderer } from './qt-renderer';
 
 type ResponseHandler = (response: WorkerResponse) => void;
 
@@ -10,6 +11,8 @@ class PsdEngine {
   private isReady = false;
   private readyPromise: Promise<void> | null = null;
   private pendingCallbacks: Map<string, ResponseHandler[]> = new Map();
+  // Cache PSD data for Qt renderer
+  private psdDataCache: Map<FileSlot, ArrayBuffer> = new Map();
 
   async initialize(): Promise<void> {
     if (this.worker) {
@@ -78,6 +81,12 @@ class PsdEngine {
       case 'released':
         key = `release-${response.file}`;
         break;
+      case 'fontRegistered':
+        key = 'registerFont';
+        break;
+      case 'registeredFonts':
+        key = 'getRegisteredFonts';
+        break;
       case 'error':
         // Try to route error to specific callback if file/operation provided
         if (response.file && response.operation) {
@@ -116,6 +125,10 @@ class PsdEngine {
       await this.initialize();
     }
 
+    // Cache the PSD data for Qt renderer (it needs to re-parse in main thread)
+    this.psdDataCache.set(file, data.slice(0));
+    qtRenderer.cachePsdData(file, data.slice(0));
+
     return new Promise((resolve, reject) => {
       this.addCallback(`parse-${file}`, (response) => {
         if (response.type === 'parsed') {
@@ -129,11 +142,17 @@ class PsdEngine {
     });
   }
 
-  async renderCompositeWithVisibility(file: FileSlot, hiddenLayerIds: number[], shownLayerIds: number[] = []): Promise<RenderedImage> {
+  async renderCompositeWithVisibility(file: FileSlot, hiddenLayerIds: number[], shownLayerIds: number[] = [], renderMode: RenderMode = 'fast'): Promise<RenderedImage> {
     if (!this.isReady) {
       throw new Error('Engine not ready');
     }
 
+    // Qt mode uses main thread renderer (requires QGuiApplication with DOM access)
+    if (renderMode === 'qt') {
+      return qtRenderer.renderCompositeWithQt(file, hiddenLayerIds, shownLayerIds);
+    }
+
+    // Fast mode uses worker
     return new Promise((resolve, reject) => {
       this.addCallback(`renderComposite-${file}`, (response) => {
         if (response.type === 'rendered') {
@@ -143,7 +162,7 @@ class PsdEngine {
         }
       });
 
-      this.postMessage({ type: 'renderCompositeWithVisibility', file, hiddenLayerIds, shownLayerIds });
+      this.postMessage({ type: 'renderCompositeWithVisibility', file, hiddenLayerIds, shownLayerIds, renderMode });
     });
   }
 
@@ -166,6 +185,10 @@ class PsdEngine {
   }
 
   async release(file: FileSlot): Promise<void> {
+    // Release from Qt renderer
+    qtRenderer.release(file);
+    this.psdDataCache.delete(file);
+
     if (!this.worker) return;
 
     return new Promise((resolve) => {
@@ -174,6 +197,54 @@ class PsdEngine {
       });
 
       this.postMessage({ type: 'release', file });
+    });
+  }
+
+  async registerFont(data: ArrayBuffer, filename: string): Promise<{ fontId: number; families: string[] }> {
+    if (!this.isReady) {
+      await this.initialize();
+    }
+
+    // Register font in both worker (fast mode) and main thread Qt renderer
+    const workerPromise = new Promise<{ fontId: number; families: string[] }>((resolve, reject) => {
+      this.addCallback('registerFont', (response) => {
+        if (response.type === 'fontRegistered') {
+          resolve({ fontId: response.fontId, families: response.families });
+        } else if (response.type === 'error') {
+          reject(new Error(response.message));
+        }
+      });
+
+      this.postMessage({ type: 'registerFont', data, filename });
+    });
+
+    // Also register in Qt renderer (for Qt mode)
+    // Use a copy of the data since ArrayBuffer can only be transferred once
+    const qtPromise = qtRenderer.registerFont(data.slice(0), filename).catch(err => {
+      console.warn('[PsdEngine] Failed to register font in Qt renderer:', err);
+      return null;
+    });
+
+    // Wait for both, but only return worker result (they should match)
+    const [workerResult] = await Promise.all([workerPromise, qtPromise]);
+    return workerResult;
+  }
+
+  async getRegisteredFonts(): Promise<string[]> {
+    if (!this.isReady) {
+      await this.initialize();
+    }
+
+    return new Promise((resolve, reject) => {
+      this.addCallback('getRegisteredFonts', (response) => {
+        if (response.type === 'registeredFonts') {
+          resolve(response.fonts);
+        } else if (response.type === 'error') {
+          reject(new Error(response.message));
+        }
+      });
+
+      this.postMessage({ type: 'getRegisteredFonts' });
     });
   }
 

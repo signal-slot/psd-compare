@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import { create } from 'zustand';
-import type { PsdData, RenderedImage, FileSlot, LayerInfo } from '../lib/types';
+import type { PsdData, RenderedImage, FileSlot, LayerInfo, RenderMode } from '../lib/types';
 import { psdEngine } from '../lib/psd-engine';
 
 // Helper: Get all descendant layer IDs for a group
@@ -102,6 +102,8 @@ interface PsdState {
   // Visibility overrides: layerId -> visible (true/false), undefined = use original
   visibilityOverridesA: Map<number, boolean>;
   visibilityOverridesB: Map<number, boolean>;
+  // Render mode: 'fast' uses raw channel data, 'qt' uses Qt rendering with effects and fonts
+  renderMode: RenderMode;
 }
 
 // Synchronous loading guards (outside Zustand state to avoid async race)
@@ -117,6 +119,7 @@ interface PsdActions {
   clear: (file: FileSlot) => void;
   clearAll: () => void;
   setError: (error: string | null) => void;
+  setRenderMode: (mode: RenderMode) => Promise<void>;
 }
 
 export const usePsdStore = create<PsdState & PsdActions>((set, get) => ({
@@ -130,6 +133,7 @@ export const usePsdStore = create<PsdState & PsdActions>((set, get) => ({
   error: null,
   visibilityOverridesA: new Map(),
   visibilityOverridesB: new Map(),
+  renderMode: 'fast',
 
   loadPsd: async (file, data) => {
     const loadingKey = file === 'A' ? 'loadingA' : 'loadingB';
@@ -193,8 +197,9 @@ export const usePsdStore = create<PsdState & PsdActions>((set, get) => ({
       console.log('[loadPsd] Hidden layers:', hiddenLayerIds, 'Shown layers:', shownLayerIds);
 
       // Use layer-by-layer rendering with QtPsd (proper rendering)
-      console.log('[loadPsd] Calling renderCompositeWithVisibility for file', file, 'with parserId:', psdData.parserId);
-      const composite = await psdEngine.renderCompositeWithVisibility(file, hiddenLayerIds, shownLayerIds);
+      const { renderMode } = get();
+      console.log('[loadPsd] Calling renderCompositeWithVisibility for file', file, 'with parserId:', psdData.parserId, 'renderMode:', renderMode);
+      const composite = await psdEngine.renderCompositeWithVisibility(file, hiddenLayerIds, shownLayerIds, renderMode);
       console.log('[loadPsd] Render complete for file', file);
       set({ [compositeKey]: composite });
     } catch (err) {
@@ -270,8 +275,9 @@ export const usePsdStore = create<PsdState & PsdActions>((set, get) => ({
 
     // Render with the computed lists
     const compositeKey = file === 'A' ? 'compositeA' : 'compositeB';
+    const { renderMode } = get();
     try {
-      const composite = await psdEngine.renderCompositeWithVisibility(file, hiddenLayerIds, shownLayerIds);
+      const composite = await psdEngine.renderCompositeWithVisibility(file, hiddenLayerIds, shownLayerIds, renderMode);
       set({ [compositeKey]: composite });
     } catch (err) {
       console.error('Failed to render composite:', err);
@@ -334,8 +340,9 @@ export const usePsdStore = create<PsdState & PsdActions>((set, get) => ({
 
     // Render with the computed lists
     const compositeKey = file === 'A' ? 'compositeA' : 'compositeB';
+    const { renderMode } = get();
     try {
-      const composite = await psdEngine.renderCompositeWithVisibility(file, hiddenLayerIds, shownLayerIds);
+      const composite = await psdEngine.renderCompositeWithVisibility(file, hiddenLayerIds, shownLayerIds, renderMode);
       set({ [compositeKey]: composite });
     } catch (err) {
       console.error('Failed to render composite:', err);
@@ -398,9 +405,10 @@ export const usePsdStore = create<PsdState & PsdActions>((set, get) => ({
     set(overrideUpdates);
 
     // Render all files in parallel
+    const { renderMode } = get();
     try {
       const renderPromises = renderTasks.map(task =>
-        psdEngine.renderCompositeWithVisibility(task.file, task.hiddenLayerIds, task.shownLayerIds)
+        psdEngine.renderCompositeWithVisibility(task.file, task.hiddenLayerIds, task.shownLayerIds, renderMode)
           .then(composite => ({ file: task.file, composite }))
       );
 
@@ -457,9 +465,10 @@ export const usePsdStore = create<PsdState & PsdActions>((set, get) => ({
 
     console.log('[recomposite] hiddenLayerIds:', hiddenLayerIds, 'shownLayerIds:', shownLayerIds);
 
+    const { renderMode } = get();
     try {
       // Always use layer-by-layer compositing (more reliable than pre-baked composite)
-      const composite = await psdEngine.renderCompositeWithVisibility(file, hiddenLayerIds, shownLayerIds);
+      const composite = await psdEngine.renderCompositeWithVisibility(file, hiddenLayerIds, shownLayerIds, renderMode);
       set({ [compositeKey]: composite });
     } catch (err) {
       console.error('Failed to render composite:', err);
@@ -489,5 +498,31 @@ export const usePsdStore = create<PsdState & PsdActions>((set, get) => ({
     });
   },
 
-  setError: (error) => set({ error })
+  setError: (error) => set({ error }),
+
+  setRenderMode: async (mode) => {
+    set({ renderMode: mode, rendering: true });
+
+    // Set busy cursor
+    document.body.style.cursor = 'wait';
+
+    try {
+      // Re-render both files with the new mode
+      const state = get();
+      const renderTasks: Promise<void>[] = [];
+
+      if (state.psdA) {
+        renderTasks.push(get().recomposite('A'));
+      }
+      if (state.psdB) {
+        renderTasks.push(get().recomposite('B'));
+      }
+
+      await Promise.all(renderTasks);
+    } finally {
+      // Reset cursor
+      document.body.style.cursor = '';
+      set({ rendering: false });
+    }
+  }
 }));

@@ -4,6 +4,8 @@
 import { usePsdStore } from '../stores/psd-store';
 import { useDiffStore } from '../stores/diff-store';
 import FileDropZone from './FileDropZone';
+import FontDropZone from './FontDropZone';
+import RenderModeToggle from './RenderModeToggle';
 import LayerTree from './LayerTree';
 import PreviewPane from './PreviewPane';
 
@@ -81,7 +83,7 @@ const styles = {
 };
 
 export default function App() {
-  const { psdA, psdB, error } = usePsdStore();
+  const { psdA, psdB, error, renderMode } = usePsdStore();
   const { summary } = useDiffStore();
 
   return (
@@ -115,6 +117,13 @@ export default function App() {
             <FileDropZone file="A" label="Before" />
             <div style={{ height: '8px' }} />
             <FileDropZone file="B" label="After" />
+            <RenderModeToggle />
+            {renderMode === 'qt' && (
+              <>
+                <div style={{ height: '8px' }} />
+                <FontDropZone />
+              </>
+            )}
           </div>
 
           {summary && (

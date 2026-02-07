@@ -43,15 +43,23 @@ echo "Configuring..."
     -DCMAKE_PREFIX_PATH="$QT_WASM_PATH" \
     "$SCRIPT_DIR"
 
-# Build only psddiff_wasm target (skip psdexporter which has linking issues)
+# Build both WASM targets:
+# - psddiff_wasm: Worker module (QCoreApplication) for parsing and fast rendering
+# - psddiff_qt: Main thread module (QGuiApplication) for Qt rendering with effects/fonts
 echo "Building..."
-cmake --build . --target psddiff_wasm --parallel
+cmake --build . --target psddiff_wasm psddiff_qt --parallel
 
 # Copy output to public directory
 mkdir -p "$OUTPUT_DIR"
+
+# Worker module (for Web Worker)
 cp psddiff_wasm.js "$OUTPUT_DIR/" 2>/dev/null || true
 cp psddiff_wasm.wasm "$OUTPUT_DIR/" 2>/dev/null || true
 cp psddiff_wasm.worker.js "$OUTPUT_DIR/" 2>/dev/null || true
+
+# Main thread Qt module (for full Qt rendering with effects)
+cp psddiff_qt.js "$OUTPUT_DIR/" 2>/dev/null || true
+cp psddiff_qt.wasm "$OUTPUT_DIR/" 2>/dev/null || true
 
 echo "Build complete. Output in: $OUTPUT_DIR"
 ls -la "$OUTPUT_DIR"

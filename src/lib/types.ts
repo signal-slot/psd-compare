@@ -83,16 +83,27 @@ export interface RenderedImage {
 export type WorkerRequest =
   | { type: 'init' }
   | { type: 'parse'; file: 'A' | 'B'; data: ArrayBuffer }
-  | { type: 'renderCompositeWithVisibility'; file: 'A' | 'B'; hiddenLayerIds: number[]; shownLayerIds: number[] }
+  | { type: 'renderCompositeWithVisibility'; file: 'A' | 'B'; hiddenLayerIds: number[]; shownLayerIds: number[]; renderMode?: RenderMode }
   | { type: 'renderLayer'; file: 'A' | 'B'; layerIndex: number }
-  | { type: 'release'; file: 'A' | 'B' };
+  | { type: 'release'; file: 'A' | 'B' }
+  | { type: 'registerFont'; data: ArrayBuffer; filename: string }
+  | { type: 'getRegisteredFonts' };
 
 export type WorkerResponse =
   | { type: 'ready' }
   | { type: 'parsed'; file: 'A' | 'B'; data: PsdData }
   | { type: 'rendered'; file: 'A' | 'B'; image: RenderedImage; layerIndex?: number }
   | { type: 'released'; file: 'A' | 'B' }
-  | { type: 'error'; message: string; file?: 'A' | 'B'; operation?: string };
+  | { type: 'error'; message: string; file?: 'A' | 'B'; operation?: string }
+  | { type: 'fontRegistered'; fontId: number; families: string[] }
+  | { type: 'registeredFonts'; fonts: string[] };
+
+// Font information
+export interface FontInfo {
+  fontId: number;
+  families: string[];
+  fileName: string;
+}
 
 // Diff types
 export type DiffStatus = 'added' | 'removed' | 'modified' | 'unchanged';
@@ -124,6 +135,9 @@ export interface LayerTreeNode {
 
 // Comparison mode
 export type CompareMode = 'swipe' | 'crossfade' | 'sideBySide';
+
+// Render mode: 'fast' uses raw channel data, 'qt' uses Qt rendering with effects and fonts
+export type RenderMode = 'fast' | 'qt';
 
 // File slot
 export type FileSlot = 'A' | 'B';

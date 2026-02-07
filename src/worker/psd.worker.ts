@@ -3,7 +3,7 @@
 
 /// <reference lib="webworker" />
 
-import type { WorkerRequest, WorkerResponse, PsdData, RenderedImage, LayerInfo } from '../lib/types';
+import type { WorkerRequest, WorkerResponse, PsdData, RenderedImage, LayerInfo, RenderMode } from '../lib/types';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -37,6 +37,8 @@ interface PsdDiffModule {
     skippedEmptyRect?: number;
     skippedEmptyData?: number;
   };
+  // Note: renderCompositeWithQt is handled by main thread Qt module (qt-renderer.ts)
+  // The worker only handles fast mode rendering
   renderLayer(handle: number, layerIndex: number): {
     width?: number;
     height?: number;
@@ -46,6 +48,15 @@ interface PsdDiffModule {
     error?: string;
   };
   releaseParser(handle: number): void;
+  // Font registration
+  allocateFontBuffer(size: number): void;
+  getFontBufferView(): Uint8Array;
+  registerFont(dataSize: number, filename: string): {
+    fontId?: number;
+    families?: string[];
+    error?: string;
+  };
+  getRegisteredFonts(): string[];
 }
 
 let wasmModule: PsdDiffModule | null = null;
@@ -58,14 +69,16 @@ const parserHandles: { A: number | null; B: number | null } = { A: null, B: null
 const parserGeneration: { A: number; B: number } = { A: 0, B: 0 };
 
 async function loadWasmModule(): Promise<PsdDiffModule> {
-  const response = await fetch('/wasm/psddiff_wasm.js');
+  // Add cache-busting query parameter
+  const cacheBuster = Date.now();
+  const response = await fetch(`/wasm/psddiff_wasm.js?v=${cacheBuster}`);
   const scriptText = await response.text();
 
   const scriptFunc = new Function(scriptText + '\nreturn psddiff_wasm_entry;');
   const factory = scriptFunc() as (options?: Record<string, unknown>) => Promise<PsdDiffModule>;
 
   return await factory({
-    locateFile: (path: string) => `/wasm/${path}`
+    locateFile: (path: string) => `/wasm/${path}?v=${cacheBuster}`
   });
 }
 
@@ -159,7 +172,10 @@ async function parsePsd(file: 'A' | 'B', data: ArrayBuffer): Promise<void> {
   }
 }
 
-function renderCompositeWithVisibility(file: 'A' | 'B', hiddenLayerIds: number[], shownLayerIds: number[]): void {
+function renderCompositeWithVisibility(file: 'A' | 'B', hiddenLayerIds: number[], shownLayerIds: number[], _renderMode: RenderMode = 'fast'): void {
+  // Note: Qt mode is handled by main thread Qt renderer (qt-renderer.ts)
+  // This worker only handles fast mode using pre-rasterized layer data
+
   if (!wasmModule) {
     postResponse({ type: 'error', message: 'WASM module not initialized' });
     return;
@@ -189,16 +205,14 @@ function renderCompositeWithVisibility(file: 'A' | 'B', hiddenLayerIds: number[]
       return;
     }
 
+    // Use fast rendering with pre-rasterized layer data
     const result = wasmModule.renderCompositeWithVisibility(handle, hiddenLayerIds, shownLayerIds);
 
     console.log('[Worker] WASM result:', {
       error: result.error,
-      debug_parserState: result.debug_parserState,
       width: result.width,
       height: result.height,
       renderedLayers: result.renderedLayers,
-      hiddenCount: result.hiddenCount,
-      shownCount: result.shownCount,
       hasData: !!result.data,
       dataLength: result.data?.length
     });
@@ -282,6 +296,50 @@ function releaseParser(file: 'A' | 'B'): void {
   postResponse({ type: 'released', file });
 }
 
+async function registerFont(data: ArrayBuffer, filename: string): Promise<void> {
+  await initWasm();
+
+  if (!wasmModule) {
+    postResponse({ type: 'error', message: 'WASM module not initialized' });
+    return;
+  }
+
+  try {
+    const bytes = new Uint8Array(data);
+    wasmModule.allocateFontBuffer(bytes.length);
+    const bufferView = wasmModule.getFontBufferView();
+    bufferView.set(bytes);
+
+    const result = wasmModule.registerFont(bytes.length, filename);
+
+    if (result.error) {
+      postResponse({ type: 'error', message: `Failed to register font: ${result.error}` });
+      return;
+    }
+
+    postResponse({
+      type: 'fontRegistered',
+      fontId: result.fontId!,
+      families: result.families || []
+    });
+  } catch (error) {
+    postResponse({
+      type: 'error',
+      message: `Failed to register font: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
+}
+
+function getRegisteredFonts(): void {
+  if (!wasmModule) {
+    postResponse({ type: 'error', message: 'WASM module not initialized' });
+    return;
+  }
+
+  const fonts = wasmModule.getRegisteredFonts();
+  postResponse({ type: 'registeredFonts', fonts });
+}
+
 self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
 
@@ -293,13 +351,19 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       await parsePsd(request.file, request.data);
       break;
     case 'renderCompositeWithVisibility':
-      renderCompositeWithVisibility(request.file, request.hiddenLayerIds, request.shownLayerIds);
+      renderCompositeWithVisibility(request.file, request.hiddenLayerIds, request.shownLayerIds, request.renderMode);
       break;
     case 'renderLayer':
       renderLayer(request.file, request.layerIndex);
       break;
     case 'release':
       releaseParser(request.file);
+      break;
+    case 'registerFont':
+      await registerFont(request.data, request.filename);
+      break;
+    case 'getRegisteredFonts':
+      getRegisteredFonts();
       break;
   }
 };

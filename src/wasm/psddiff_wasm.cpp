@@ -14,11 +14,22 @@
 #include <QtCore/QCoreApplication>
 #include <QtPlugin>
 #include <QtGui/QImage>
+#include <QtGui/QFontDatabase>
+#include <QtGui/private/qfreetypefontdatabase_p.h>
 
 #include <QtPsdCore/QPsdParser>
 #include <QtPsdCore/QPsdLayerRecord>
 #include <QtPsdCore/qpsdblend.h>
 #include <QtPsdCore/QPsdSectionDividerSetting>
+#include <QtPsdCore/QPsdShadowEffect>
+#include <QtPsdCore/QPsdSofiEffect>
+
+// PsdGui for proper layer rendering with effects
+#include <QtPsdGui/QPsdAbstractLayerItem>
+#include <QtPsdGui/QPsdImageLayerItem>
+#include <QtPsdGui/qpsdguiglobal.h>
+
+#include <QtGui/QPainter>
 
 // Import static plugins for WASM
 // Additional Layer Information plugins
@@ -87,6 +98,7 @@ Q_IMPORT_PLUGIN(QPsdEffectsLayerSofiPlugin)
 using namespace emscripten;
 
 // Global Qt application instance (QCoreApplication for Web Worker compatibility)
+// Note: QGuiApplication cannot be used in Web Worker (no DOM access)
 static int s_argc = 1;
 static char* s_argv[] = { (char*)"psddiff_wasm", nullptr };
 static QCoreApplication* s_app = nullptr;
@@ -108,6 +120,69 @@ void allocateBuffer(int size) {
 val getBufferView() {
     return val(typed_memory_view(s_dataBuffer.size(),
                reinterpret_cast<unsigned char*>(s_dataBuffer.data())));
+}
+
+// Font buffer for receiving font data from JavaScript
+static QByteArray s_fontBuffer;
+
+// Track registered fonts: font family names
+static std::vector<std::string> s_registeredFontFamilies;
+
+void allocateFontBuffer(int size) {
+    s_fontBuffer.resize(size);
+}
+
+val getFontBufferView() {
+    return val(typed_memory_view(s_fontBuffer.size(),
+               reinterpret_cast<unsigned char*>(s_fontBuffer.data())));
+}
+
+static int s_nextFontId = 1;
+
+// Register a font from the font buffer
+// Uses QFreeTypeFontDatabase::addTTFile directly to bypass WASM platform integration issues
+val registerFont(int dataSize, const std::string& filename) {
+    val result = val::object();
+
+    ensureQtApp();
+
+    if (dataSize <= 0 || dataSize > s_fontBuffer.size()) {
+        result.set("error", "Invalid font data size");
+        return result;
+    }
+
+    QByteArray fontData(s_fontBuffer.constData(), dataSize);
+
+    // Use QFreeTypeFontDatabase::addTTFile directly
+    // This bypasses QFontDatabase::addApplicationFontFromData which has
+    // function signature issues when going through platform integration in WASM
+    QStringList families = QFreeTypeFontDatabase::addTTFile(fontData, QByteArray());
+
+    if (families.isEmpty()) {
+        result.set("error", "Failed to register font - no font families found in file");
+        return result;
+    }
+
+    // Store registered family names
+    val familiesArray = val::array();
+    for (const QString& family : families) {
+        std::string familyStr = family.toStdString();
+        s_registeredFontFamilies.push_back(familyStr);
+        familiesArray.call<void>("push", familyStr);
+    }
+
+    result.set("fontId", s_nextFontId++);
+    result.set("families", familiesArray);
+    return result;
+}
+
+// Get list of all registered font families
+val getRegisteredFonts() {
+    val result = val::array();
+    for (const auto& family : s_registeredFontFamilies) {
+        result.call<void>("push", family);
+    }
+    return result;
 }
 
 std::string blendModeToString(QPsdBlend::Mode mode) {
@@ -656,6 +731,185 @@ val renderLayer(double handleD, int layerIndex) {
     }
 }
 
+// Render composite using Qt's PsdGui classes for proper layer effects and text rendering
+val renderCompositeWithQt(double handleD, val hiddenLayerIdsVal, val shownLayerIdsVal) {
+    val result = val::object();
+    int handle = static_cast<int>(handleD);
+
+    try {
+        if (handle < 1 || handle >= 16 || s_parsers[handle] == nullptr) {
+            result.set("error", std::string("Invalid parser handle: ") + std::to_string(handle));
+            return result;
+        }
+        PsdData* psdData = s_parsers[handle];
+
+        int width = psdData->width;
+        int height = psdData->height;
+
+        if (width == 0 || height == 0) {
+            result.set("error", "Invalid dimensions");
+            return result;
+        }
+
+        // Parse hidden/shown layer IDs
+        std::set<int> hiddenIds;
+        std::set<int> shownIds;
+
+        int hiddenCount = hiddenLayerIdsVal["length"].as<int>();
+        for (int i = 0; i < hiddenCount; ++i) {
+            hiddenIds.insert(hiddenLayerIdsVal[i].as<int>());
+        }
+
+        int shownCount = shownLayerIdsVal["length"].as<int>();
+        for (int i = 0; i < shownCount; ++i) {
+            shownIds.insert(shownLayerIdsVal[i].as<int>());
+        }
+
+        // Create output image
+        QImage outputImage(width, height, QImage::Format_ARGB32);
+        outputImage.fill(Qt::transparent);
+        QPainter painter(&outputImage);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::TextAntialiasing);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+
+        const auto& header = psdData->parser.fileHeader();
+        const auto& layerMaskInfo = psdData->parser.layerAndMaskInformation();
+        const auto& layerInfo = layerMaskInfo.layerInfo();
+        const auto& records = layerInfo.records();
+
+        int renderedCount = 0;
+
+        // Render each layer
+        int recordCount = records.size();
+        for (int i = 0; i < recordCount; ++i) {
+            const auto& record = records[i];
+            const auto& ali = record.additionalLayerInformation();
+
+            // Get layer ID
+            int lyidValue = ali.value("lyid").toInt();
+            int layerId = lyidValue > 0 ? lyidValue : (i + 1);
+
+            // Skip group markers
+            const auto& lsct = ali.value("lsct");
+            if (lsct.isValid() && lsct.canConvert<QPsdSectionDividerSetting>()) {
+                auto sectionDivider = lsct.value<QPsdSectionDividerSetting>();
+                int type = sectionDivider.type();
+                if (type == 1 || type == 2 || type == 3) {
+                    continue;
+                }
+            }
+
+            // Determine visibility
+            bool originalVisible = !record.isVisible();
+            bool effectiveVisible = hiddenIds.count(layerId) ? false :
+                                   shownIds.count(layerId) ? true : originalVisible;
+
+            if (!effectiveVisible) continue;
+
+            QRect rect = record.rect();
+            if (rect.isEmpty()) continue;
+
+            // Use QPsdImageLayerItem for image rendering with effects
+            // Note: Text layers use pre-rasterized image data (dynamic text rendering
+            // requires QGuiApplication which is not available in Web Worker)
+            QPsdImageLayerItem imageLayer(record);
+            QImage layerImage = imageLayer.image();
+
+            if (layerImage.isNull()) continue;
+
+            painter.save();
+
+            // Get layer opacity
+            double layerOpacity = imageLayer.opacity();
+            double fillOpacity = imageLayer.fillOpacity();
+
+            // Set blend mode
+            painter.setCompositionMode(QtPsdGui::compositionMode(record.blendMode()));
+
+            // Handle layer effects (drop shadow)
+            const auto effects = imageLayer.effects();
+            for (const auto& effect : effects) {
+                if (effect.canConvert<QPsdShadowEffect>()) {
+                    const auto dropShadow = effect.value<QPsdShadowEffect>();
+
+                    // Get shadow parameters
+                    const auto angle = dropShadow.angle();
+                    const auto distance = dropShadow.distance();
+                    const auto color = QColor(dropShadow.nativeColor());
+                    const auto opacity = dropShadow.opacity();
+
+                    // Calculate offset
+                    const qreal angleRad = qDegreesToRadians(qreal(angle));
+                    const QPointF offset(
+                        qCos(angleRad) * distance,
+                        -qSin(angleRad) * distance
+                    );
+
+                    // Create shadow image
+                    QImage shadowImage = layerImage.convertToFormat(QImage::Format_ARGB32);
+                    for (int sy = 0; sy < shadowImage.height(); ++sy) {
+                        QRgb *scanLine = reinterpret_cast<QRgb *>(shadowImage.scanLine(sy));
+                        for (int sx = 0; sx < shadowImage.width(); ++sx) {
+                            const int alpha = qAlpha(scanLine[sx]);
+                            if (alpha > 0) {
+                                scanLine[sx] = qRgba(color.red(), color.green(), color.blue(), alpha);
+                            }
+                        }
+                    }
+
+                    // Draw shadow
+                    painter.save();
+                    painter.setOpacity(layerOpacity * opacity);
+                    painter.drawImage(rect.topLeft() + offset.toPoint(), shadowImage);
+                    painter.restore();
+                }
+            }
+
+            // Draw the layer
+            painter.setOpacity(layerOpacity * fillOpacity);
+            painter.drawImage(rect.topLeft(), layerImage);
+
+            // Handle gradient overlay
+            const auto* gradient = imageLayer.gradient();
+            if (gradient) {
+                painter.setOpacity(0.71);
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(QBrush(*gradient));
+                painter.drawRect(rect);
+            }
+
+            painter.restore();
+            renderedCount++;
+        }
+
+        painter.end();
+
+        result.set("renderedLayers", renderedCount);
+        result.set("renderMode", std::string("qt"));
+
+        // Convert to RGBA and copy to JavaScript
+        QImage rgbaImage = outputImage.convertToFormat(QImage::Format_RGBA8888);
+        qsizetype byteCount = rgbaImage.sizeInBytes();
+
+        val Uint8ClampedArray = val::global("Uint8ClampedArray");
+        val data = Uint8ClampedArray.new_(static_cast<unsigned int>(byteCount));
+        val sourceView = val(typed_memory_view(byteCount, rgbaImage.constBits()));
+        data.call<void>("set", sourceView);
+
+        result.set("width", width);
+        result.set("height", height);
+        result.set("data", data);
+        return result;
+    } catch (const std::exception& e) {
+        result.set("error", std::string("Exception: ") + e.what());
+        return result;
+    } catch (...) {
+        result.set("error", "Unknown exception");
+        return result;
+    }
+}
+
 void releaseParser(double handleD) {
     int handle = static_cast<int>(handleD);
     if (handle >= 1 && handle < 16 && s_parsers[handle] != nullptr) {
@@ -674,6 +928,12 @@ EMSCRIPTEN_BINDINGS(psddiff) {
     function("getBufferView", &getBufferView);
     function("parsePsd", &parsePsd);
     function("renderCompositeWithVisibility", &renderCompositeWithVisibility);
+    function("renderCompositeWithQt", &renderCompositeWithQt);
     function("renderLayer", &renderLayer);
     function("releaseParser", &releaseParser);
+    // Font registration
+    function("allocateFontBuffer", &allocateFontBuffer);
+    function("getFontBufferView", &getFontBufferView);
+    function("registerFont", &registerFont);
+    function("getRegisteredFonts", &getRegisteredFonts);
 }
