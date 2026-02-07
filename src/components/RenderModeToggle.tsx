@@ -55,20 +55,20 @@ export default function RenderModeToggle() {
           onClick={() => setRenderMode('fast')}
           disabled={disabled}
         >
-          Image
+          Baked
         </button>
         <button
           style={styles.button(renderMode === 'qt', disabled)}
           onClick={() => setRenderMode('qt')}
           disabled={disabled}
         >
-          Rendering
+          Live
         </button>
       </div>
       <div style={styles.description}>
         {renderMode === 'fast'
-          ? 'Pre-rasterized layer data'
-          : 'Full rendering with effects and fonts'}
+          ? 'Pre-rendered layer data from PSD'
+          : 'Live rendering with effects and fonts'}
       </div>
     </div>
   );
