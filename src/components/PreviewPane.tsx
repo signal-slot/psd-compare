@@ -1,10 +1,12 @@
 // Copyright (C) 2026 Signal Slot Inc.
 // SPDX-License-Identifier: MIT
 
+import { useState, useCallback } from 'react';
 import { usePsdStore } from '../stores/psd-store';
 import { useDiffStore } from '../stores/diff-store';
 import SwipeCompare from './SwipeCompare';
 import CrossfadeCompare from './CrossfadeCompare';
+import type { RenderedImage } from '../lib/types';
 
 const styles = {
   container: {
@@ -156,6 +158,18 @@ const styles = {
     color: '#888',
     textDecoration: 'none'
   },
+  toolbarSpacer: {
+    flex: 1
+  },
+  copyButton: (color: string) => ({
+    padding: '4px 12px',
+    border: 'none',
+    borderRadius: '4px',
+    backgroundColor: color,
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '12px'
+  }),
   busyOverlay: {
     position: 'absolute' as const,
     top: 0,
@@ -230,6 +244,26 @@ export default function PreviewPane() {
     selectedLayerId
   } = useDiffStore();
 
+  const [copiedA, setCopiedA] = useState(false);
+  const [copiedB, setCopiedB] = useState(false);
+
+  const copyToClipboard = useCallback(async (image: RenderedImage, setCopied: (v: boolean) => void) => {
+    if (!image.data) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext('2d')!;
+    const dataCopy = new Uint8ClampedArray(image.data.length);
+    dataCopy.set(image.data);
+    const imageData = new ImageData(dataCopy, image.width, image.height);
+    ctx.putImageData(imageData, 0, 0);
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return;
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, []);
+
   const hasBothImages = compositeA && compositeB;
   const hasSingleImage = (compositeA || compositeB) && !hasBothImages;
   const singleImage = compositeA || compositeB;
@@ -301,6 +335,23 @@ export default function PreviewPane() {
           <span style={{ fontSize: '12px', opacity: 0.7 }}>
             Single file preview - load another PSD to compare
           </span>
+        )}
+        <div style={styles.toolbarSpacer} />
+        {compositeA && (
+          <button
+            style={styles.copyButton('#f44336')}
+            onClick={() => copyToClipboard(compositeA, setCopiedA)}
+          >
+            {copiedA ? 'Copied!' : 'Copy Before'}
+          </button>
+        )}
+        {compositeB && (
+          <button
+            style={styles.copyButton('#2196f3')}
+            onClick={() => copyToClipboard(compositeB, setCopiedB)}
+          >
+            {copiedB ? 'Copied!' : 'Copy After'}
+          </button>
         )}
       </div>
 
